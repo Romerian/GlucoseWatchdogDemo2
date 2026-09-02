@@ -1,1 +1,21 @@
+# Glucose Watchdog Demo 2
 
+A dependency-free browser demo of the Glucose Watchdog main screen. It displays seven days of glucose and insulin data, one 24-hour page at a time, with requirement-defined low, acceptable, borderline-high, and high range highlighting, reading details, confirmed deletion, glucose warnings, and bulk spreadsheet import.
+
+## Run locally
+
+```sh
+npm start
+```
+
+Then open <http://localhost:4173>.
+
+## Import glucose data
+
+Use **Import spreadsheet** to load `.xlsx`, `.csv`, or `.tsv` data. The first row must contain either `timestamp` and `glucose`, or `date`, `time`, and `glucose` columns. Only the most recent seven dates are displayed.
+
+## Test
+
+```sh
+npm test
+```
