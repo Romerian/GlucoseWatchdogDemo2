@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f7f2" />
+    <title>Glucose Watchdog</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#main-content" aria-label="Glucose Watchdog home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48"><path d="M24 5C18 14 10 21 10 30a14 14 0 0 0 28 0C38 21 30 14 24 5Z"/><path d="m18 30 4 4 8-10"/></svg>
+          </span>
+          <span>Glucose<br /><strong>Watchdog</strong></span>
+        </a>
+      </header>
+
+      <main id="main-content">
+        <section class="import-card" aria-labelledby="import-title">
+          <div>
+            <h2 id="import-title">Load glucose data</h2>
+            <p>Import an Excel workbook or a CSV/TSV exported from Excel. Use <strong>timestamp + glucose</strong> or <strong>date + time + glucose</strong> columns.</p>
+            <p id="import-status" class="import-status" role="status" aria-live="polite"></p>
+          </div>
+          <label class="import-button" for="spreadsheet-file">Import spreadsheet</label>
+          <input id="spreadsheet-file" type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        </section>
+
+        <section class="chart-card" aria-labelledby="chart-title">
+          <div class="chart-header">
+            <div>
+              <h2 id="chart-title">24-hour glucose chart</h2>
+              <p id="chart-date" class="chart-date"></p>
+            </div>
+            <nav class="day-navigation" aria-label="Browse the last seven days">
+              <button id="previous-day" class="icon-button" type="button" aria-label="Show previous day">←</button>
+              <button id="today-button" type="button">Latest</button>
+              <button id="next-day" class="icon-button" type="button" aria-label="Show next day">→</button>
+            </nav>
+          </div>
+
+          <div class="legend" aria-label="Chart legend">
+            <span><i class="legend-line glucose"></i>Glucose</span>
+            <span><i class="legend-marker insulin"></i>Insulin</span>
+            <span><i class="legend-block low"></i>Low 40–80</span>
+            <span><i class="legend-block normal"></i>Acceptable 80–115</span>
+            <span><i class="legend-block borderline-high"></i>Borderline high 115–180</span>
+            <span><i class="legend-block high"></i>High 180–400</span>
+          </div>
+
+          <div class="chart-wrap">
+            <svg id="glucose-chart" viewBox="0 0 1000 430" role="img" aria-labelledby="svg-title svg-description">
+              <title id="svg-title">Glucose and insulin readings over 24 hours</title>
+              <desc id="svg-description">Glucose readings are black dots joined by a black line. Blue, green, yellow, and red areas show the defined low, acceptable, borderline-high, and high ranges.</desc>
+            </svg>
+            <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
+          </div>
+          <p class="chart-instruction">Hover or focus a marker for a quick reading. Select it to view details or delete it.</p>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="reading-dialog" class="reading-dialog" aria-labelledby="reading-dialog-title">
+      <div class="dialog-topline"><span id="reading-kind" class="reading-kind"></span><button id="close-reading" class="close-button" type="button" aria-label="Close reading details">×</button></div>
+      <h2 id="reading-dialog-title">Reading details</h2>
+      <dl class="reading-details">
+        <div><dt>Date</dt><dd id="detail-date"></dd></div>
+        <div><dt>Time</dt><dd id="detail-time"></dd></div>
+        <div><dt id="detail-value-label">Value</dt><dd id="detail-value"></dd></div>
+      </dl>
+      <div class="dialog-actions"><button id="cancel-reading" class="secondary-button" type="button">Close</button><button id="request-delete" class="danger-button" type="button">Delete reading</button></div>
+    </dialog>
+
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title">
+      <div class="warning-icon" aria-hidden="true">!</div>
+      <h2 id="confirm-title">Delete this reading?</h2>
+      <p>This action removes the reading from the chart. You’ll need to reload the demo to restore it.</p>
+      <div class="dialog-actions"><button id="cancel-delete" class="secondary-button" type="button">Keep reading</button><button id="confirm-delete" class="danger-button" type="button">Yes, delete</button></div>
+    </dialog>
+
+    <dialog id="warning-dialog" class="glucose-warning" aria-labelledby="warning-title">
+      <div class="warning-icon" aria-hidden="true">!</div>
+      <h2 id="warning-title"></h2>
+      <p id="warning-message"></p>
+      <p class="warning-repeat-note">This warning will appear again in five minutes unless glucose returns to the acceptable 80–115 mg/dL range.</p>
+      <div class="dialog-actions"><button id="acknowledge-warning" class="warning-button" type="button">Acknowledge warning</button></div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden>Reading removed from the chart.</div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
