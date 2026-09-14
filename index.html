@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f5f7f2" />
     <title>Glucose Watchdog</title>
-    <link rel="stylesheet" href="styles.css?v=gwt6-11" />
+    <link rel="stylesheet" href="styles.css?v=gwt7-2" />
   </head>
   <body>
     <div class="app-shell">
@@ -27,6 +27,7 @@
               <p id="chart-date" class="chart-date"></p>
             </div>
             <nav class="day-navigation" aria-label="Browse the last seven days">
+              <button id="open-insulin-entry" class="open-insulin-button" type="button">Add Insulin</button>
               <button id="open-glucose-entry" class="open-entry-button" type="button">Add Glucose Reading</button>
               <button id="previous-day" class="icon-button" type="button" aria-label="Show previous day">←</button>
               <button id="today-button" type="button">Latest</button>
@@ -36,7 +37,8 @@
 
           <div class="legend" aria-label="Chart legend">
             <span><i class="legend-line glucose"></i>Glucose</span>
-            <span><i class="legend-marker insulin"></i>Insulin</span>
+            <span><i class="legend-marker insulin"></i>Bolus insulin</span>
+            <span><i class="legend-line basal"></i>Basal insulin duration</span>
             <span><i class="legend-block low"></i>Low 40–80</span>
             <span><i class="legend-block normal"></i>Acceptable 80–115</span>
             <span><i class="legend-block borderline-high"></i>Borderline high 115–180</span>
@@ -46,7 +48,7 @@
           <div class="chart-wrap">
             <svg id="glucose-chart" viewBox="0 0 1000 430" role="img" aria-labelledby="svg-title svg-description">
               <title id="svg-title">Glucose and insulin readings over 24 hours</title>
-              <desc id="svg-description">Glucose readings are black dots joined by a black line. Blue, green, yellow, and red areas show the defined low, acceptable, borderline-high, and high ranges.</desc>
+              <desc id="svg-description">Glucose readings are black dots joined by a black line. Bolus insulin deliveries are purple diamonds and Basal insulin deliveries are teal duration lines. Blue, green, yellow, and red areas show the defined low, acceptable, borderline-high, and high ranges.</desc>
             </svg>
             <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
           </div>
@@ -82,6 +84,52 @@
       <p id="entry-status" class="entry-status" role="status" aria-live="polite"></p>
     </dialog>
 
+    <dialog id="insulin-entry-dialog" class="entry-dialog insulin-entry-dialog" aria-labelledby="insulin-entry-title">
+      <div class="dialog-topline">
+        <h2 id="insulin-entry-title">Add insulin delivery</h2>
+        <button id="close-insulin-entry" class="close-button" type="button" aria-label="Close add insulin delivery">×</button>
+      </div>
+      <form id="insulin-entry-form">
+        <fieldset class="insulin-type-field">
+          <legend>Insulin type</legend>
+          <label><input name="insulin-type" type="radio" value="basal" required /> Basal</label>
+          <label><input name="insulin-type" type="radio" value="bolus" required /> Bolus</label>
+        </fieldset>
+        <label class="entry-field" for="insulin-quantity">
+          <span>Insulin quantity</span>
+          <span class="unit-input">
+            <input id="insulin-quantity" name="insulin-quantity" type="number" inputmode="decimal" min="0.1" max="200" step="0.1" required />
+            <span>units</span>
+          </span>
+        </label>
+        <label id="basal-duration-field" class="entry-field" for="basal-duration" hidden>
+          <span>Basal duration</span>
+          <span class="unit-input">
+            <input id="basal-duration" name="basal-duration" type="number" inputmode="numeric" min="1" max="720" step="1" disabled />
+            <span>minutes</span>
+          </span>
+        </label>
+        <label class="entry-field" for="insulin-date">
+          <span>Delivery date</span>
+          <input id="insulin-date" name="insulin-date" type="date" required />
+        </label>
+        <label class="entry-field" for="insulin-time">
+          <span>Delivery time</span>
+          <input id="insulin-time" name="insulin-time" type="time" required />
+        </label>
+        <button id="use-current-insulin-time" class="secondary-button current-time-button" type="button">Use current date and time</button>
+        <button class="entry-submit insulin-submit" type="submit">Add insulin delivery</button>
+      </form>
+      <p id="insulin-entry-status" class="entry-status" role="status" aria-live="polite"></p>
+      <div class="entry-import">
+        <h3>Import insulin data</h3>
+        <p>Use <strong>timestamp + type + quantity</strong> or <strong>date + time + type + quantity</strong> columns. Basal rows also require a duration column in minutes.</p>
+        <label class="import-file-button insulin-import-button" for="insulin-spreadsheet-file">Choose insulin spreadsheet</label>
+        <input id="insulin-spreadsheet-file" class="spreadsheet-file" type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        <p id="insulin-import-status" class="import-status" role="status" aria-live="polite"></p>
+      </div>
+    </dialog>
+
     <dialog id="import-dialog" class="import-dialog" aria-labelledby="import-title">
       <div class="dialog-topline">
         <h2 id="import-title">Load glucose data</h2>
@@ -89,7 +137,7 @@
       </div>
       <p>Import an Excel workbook or a CSV/TSV exported from Excel. Use <strong>timestamp + glucose</strong> or <strong>date + time + glucose</strong> columns.</p>
       <label class="import-file-button" for="spreadsheet-file">Choose spreadsheet</label>
-      <input id="spreadsheet-file" type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+      <input id="spreadsheet-file" class="spreadsheet-file" type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
       <p id="import-status" class="import-status" role="status" aria-live="polite"></p>
     </dialog>
 
@@ -100,6 +148,8 @@
         <div><dt>Date</dt><dd id="detail-date"></dd></div>
         <div><dt>Time</dt><dd id="detail-time"></dd></div>
         <div><dt id="detail-value-label">Value</dt><dd id="detail-value"></dd></div>
+        <div id="detail-insulin-type-row" hidden><dt>Insulin type</dt><dd id="detail-insulin-type"></dd></div>
+        <div id="detail-duration-row" hidden><dt>Duration</dt><dd id="detail-duration"></dd></div>
       </dl>
       <div class="dialog-actions"><button id="cancel-reading" class="secondary-button" type="button">Close</button><button id="request-delete" class="danger-button" type="button">Delete reading</button></div>
     </dialog>
@@ -120,6 +170,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden>Reading removed from the chart.</div>
-    <script type="module" src="app.js?v=gwt6-4"></script>
+    <script type="module" src="app.js?v=gwt7-3"></script>
   </body>
 </html>

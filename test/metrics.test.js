@@ -2,12 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   addGlucoseReading,
+  addInsulinReading,
+  basalEndHour,
   clampDayIndex,
   glucoseRange,
   glucoseWarning,
   HYPERGLYCEMIA_MESSAGE,
   HYPOGLYCEMIA_MESSAGE,
   parseDelimitedSpreadsheet,
+  parseDelimitedInsulinSpreadsheet,
+  normalizeInsulinReading,
   removeReadingById,
   toDateKey,
 } from "../metrics.js";
@@ -34,6 +38,34 @@ test("keeps only the latest seven days after recording", () => {
   assert.equal(updated.length, 7);
   assert.equal(updated[0].key, "2026-09-02");
   assert.equal(updated.at(-1).glucose[0].value, 110);
+});
+
+test("records a Basal insulin delivery with quantity, timestamp, and duration", () => {
+  const timestamp = new Date(2026, 8, 14, 21, 30);
+  const days = addInsulinReading([], { id: "basal-entry", insulinType: "Basal", value: 12.3, durationMinutes: 180, timestamp });
+  assert.deepEqual(days[0].insulin[0], {
+    id: "basal-entry",
+    type: "insulin",
+    insulinType: "basal",
+    hour: 21.5,
+    value: 12.3,
+    durationMinutes: 180,
+  });
+});
+
+test("requires one insulin type and enforces quantity and Basal duration limits", () => {
+  const timestamp = new Date(2026, 8, 14, 9);
+  assert.throws(() => normalizeInsulinReading({ insulinType: "", value: 1, timestamp }), /exactly one insulin type/i);
+  assert.throws(() => normalizeInsulinReading({ insulinType: "bolus", value: 0, timestamp }), /0\.1 through 200\.0/);
+  assert.throws(() => normalizeInsulinReading({ insulinType: "bolus", value: 1.25, timestamp }), /0\.1-unit increments/);
+  assert.throws(() => normalizeInsulinReading({ insulinType: "basal", value: 1, durationMinutes: 0, timestamp }), /1 through 720/);
+  assert.throws(() => normalizeInsulinReading({ insulinType: "basal", value: 1, durationMinutes: 721, timestamp }), /1 through 720/);
+  assert.equal(normalizeInsulinReading({ insulinType: "bolus", value: 200, timestamp }).durationMinutes, null);
+});
+
+test("ends the Basal duration line at the earlier of delivery end or 23:00", () => {
+  assert.equal(basalEndHour({ insulinType: "basal", hour: 8, durationMinutes: 120 }), 10);
+  assert.equal(basalEndHour({ insulinType: "basal", hour: 22, durationMinutes: 180 }), 23);
 });
 
 test("limits navigation to the available seven-day window", () => {
@@ -77,6 +109,15 @@ test("parses separate date and time spreadsheet columns", () => {
   assert.equal(readings[0].value, 105);
   assert.equal(readings[0].timestamp.getHours(), 9);
   assert.equal(readings[0].timestamp.getMinutes(), 30);
+});
+
+test("parses spreadsheet insulin deliveries and requires duration for Basal rows", () => {
+  const readings = parseDelimitedInsulinSpreadsheet("timestamp,type,quantity,duration\n2026-09-01 09:30,Basal,10.5,120\n2026-09-01 12:00,Bolus,2.4,");
+  assert.deepEqual(readings.map(({ insulinType, value, durationMinutes }) => ({ insulinType, value, durationMinutes })), [
+    { insulinType: "basal", value: 10.5, durationMinutes: 120 },
+    { insulinType: "bolus", value: 2.4, durationMinutes: null },
+  ]);
+  assert.throws(() => parseDelimitedInsulinSpreadsheet("date,time,type,quantity\n2026-09-01,09:30,Basal,10"), /Basal duration/i);
 });
 
 test("rejects spreadsheets without required columns", () => {

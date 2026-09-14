@@ -1,4 +1,9 @@
-import { parseDelimitedSpreadsheet, spreadsheetRowsToReadings } from "./metrics.js";
+import {
+  parseDelimitedInsulinSpreadsheet,
+  parseDelimitedSpreadsheet,
+  spreadsheetRowsToInsulinReadings,
+  spreadsheetRowsToReadings,
+} from "./metrics.js?v=gwt7-1";
 
 const decoder = new TextDecoder("utf-8");
 
@@ -55,7 +60,7 @@ function columnIndex(reference) {
   return [...letters.toUpperCase()].reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0) - 1;
 }
 
-async function parseXlsx(buffer) {
+async function parseXlsx(buffer, rowsToReadings) {
   const entries = await unzip(buffer);
   const sheetBytes = entries.get("xl/worksheets/sheet1.xml") ?? [...entries.entries()].find(([name]) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))?.[1];
   if (!sheetBytes) throw new Error("The Excel workbook does not contain a worksheet.");
@@ -77,7 +82,7 @@ async function parseXlsx(buffer) {
   });
 
   const headers = (rows[0] ?? []).map((value) => String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, ""));
-  const timestampIndex = headers.findIndex((header) => ["timestamp", "datetime", "dateandtime"].includes(header));
+  const timestampIndex = headers.findIndex((header) => ["timestamp", "datetime", "dateandtime", "deliverytimestamp"].includes(header));
   const dateIndex = headers.indexOf("date");
   const timeIndex = headers.indexOf("time");
   rows.slice(1).forEach((row) => {
@@ -88,14 +93,23 @@ async function parseXlsx(buffer) {
       if (timestampIndex === -1 && timeIndex >= 0) row[timeIndex] = "";
     }
   });
-  return spreadsheetRowsToReadings(rows);
+  return rowsToReadings(rows);
 }
 
 export async function parseSpreadsheetFile(file) {
   const extension = file.name.split(".").pop()?.toLowerCase();
-  if (extension === "xlsx") return parseXlsx(await file.arrayBuffer());
+  if (extension === "xlsx") return parseXlsx(await file.arrayBuffer(), spreadsheetRowsToReadings);
   if (["csv", "tsv", "txt"].includes(extension)) {
     return parseDelimitedSpreadsheet(await file.text(), extension === "tsv" ? "\t" : undefined);
+  }
+  throw new Error("Choose an .xlsx, .csv, or .tsv spreadsheet.");
+}
+
+export async function parseInsulinSpreadsheetFile(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "xlsx") return parseXlsx(await file.arrayBuffer(), spreadsheetRowsToInsulinReadings);
+  if (["csv", "tsv", "txt"].includes(extension)) {
+    return parseDelimitedInsulinSpreadsheet(await file.text(), extension === "tsv" ? "\t" : undefined);
   }
   throw new Error("Choose an .xlsx, .csv, or .tsv spreadsheet.");
 }

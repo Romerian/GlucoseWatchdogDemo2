@@ -1,6 +1,8 @@
 import {
   ACCEPTABLE_RANGE,
   addGlucoseReading,
+  addInsulinReading,
+  basalEndHour,
   BORDERLINE_HIGH_RANGE,
   clampDayIndex,
   glucoseWarning,
@@ -8,8 +10,8 @@ import {
   LOW_RANGE,
   removeReadingById,
   toDateKey,
-} from "./metrics.js?v=gwt6-2";
-import { parseSpreadsheetFile } from "./spreadsheet.js";
+} from "./metrics.js?v=gwt7-1";
+import { parseInsulinSpreadsheetFile, parseSpreadsheetFile } from "./spreadsheet.js?v=gwt7-2";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DAY_COUNT = 7;
@@ -37,9 +39,9 @@ function createDemoDays() {
     const key = toDateKey(date);
     const glucose = HOURS.map((hour, index) => ({ id: `${key}-g-${index}`, type: "glucose", hour, value: GLUCOSE_PATTERNS[dayIndex][index] }));
     const insulin = [
-      { id: `${key}-i-0`, type: "insulin", hour: 7.75, value: dayIndex % 2 ? 5 : 4 },
-      { id: `${key}-i-1`, type: "insulin", hour: 12.25, value: dayIndex % 3 ? 6 : 5 },
-      { id: `${key}-i-2`, type: "insulin", hour: 18.75, value: dayIndex % 2 ? 7 : 6 },
+      { id: `${key}-i-0`, type: "insulin", insulinType: "bolus", hour: 7.75, value: dayIndex % 2 ? 5 : 4, durationMinutes: null },
+      { id: `${key}-i-1`, type: "insulin", insulinType: "bolus", hour: 12.25, value: dayIndex % 3 ? 6 : 5, durationMinutes: null },
+      { id: `${key}-i-2`, type: "insulin", insulinType: "bolus", hour: 18.75, value: dayIndex % 2 ? 7 : 6, durationMinutes: null },
     ];
     return { date, key, glucose, insulin };
   });
@@ -73,17 +75,26 @@ const confirmDialog = document.querySelector("#confirm-dialog");
 const warningDialog = document.querySelector("#warning-dialog");
 const toast = document.querySelector("#toast");
 const entryDialog = document.querySelector("#glucose-entry-dialog");
+const insulinEntryDialog = document.querySelector("#insulin-entry-dialog");
 const importDialog = document.querySelector("#import-dialog");
 const entryForm = document.querySelector("#glucose-entry-form");
+const insulinEntryForm = document.querySelector("#insulin-entry-form");
 const glucoseLevelInput = document.querySelector("#glucose-level");
 const readingDateInput = document.querySelector("#reading-date");
 const readingTimeInput = document.querySelector("#reading-time");
 const entryStatus = document.querySelector("#entry-status");
+const insulinQuantityInput = document.querySelector("#insulin-quantity");
+const basalDurationField = document.querySelector("#basal-duration-field");
+const basalDurationInput = document.querySelector("#basal-duration");
+const insulinDateInput = document.querySelector("#insulin-date");
+const insulinTimeInput = document.querySelector("#insulin-time");
+const insulinEntryStatus = document.querySelector("#insulin-entry-status");
 
-const dimensions = { left: 68, right: 964, top: 24, bottom: 348 };
+const dimensions = { left: 68, right: 930, top: 24, bottom: 348 };
 const yMin = LOW_RANGE.min;
 const yMax = HIGH_RANGE.max;
 const xForHour = (hour) => dimensions.left + (hour / 24) * (dimensions.right - dimensions.left);
+const yForInsulin = (value) => dimensions.bottom - (value / 200) * (dimensions.bottom - dimensions.top);
 const yForValue = (value) => {
   const bounded = Math.max(yMin, Math.min(yMax, value));
   return dimensions.bottom - ((bounded - yMin) / (yMax - yMin)) * (dimensions.bottom - dimensions.top);
@@ -132,6 +143,10 @@ function renderChart(day) {
     svg.append(svgElement("text", { x, y: dimensions.bottom + 34, class: "axis-label", "text-anchor": hour === 0 ? "start" : hour === 24 ? "end" : "middle" }, label));
   }
   svg.append(svgElement("text", { x: 13, y: 18, class: "axis-unit" }, "mg/dL"));
+  [0, 50, 100, 150, 200].forEach((value) => {
+    svg.append(svgElement("text", { x: dimensions.right + 13, y: yForInsulin(value) + 5, class: "axis-label", "text-anchor": "start" }, String(value)));
+  });
+  svg.append(svgElement("text", { x: dimensions.right + 13, y: 18, class: "axis-unit" }, "units"));
 
   if (day.glucose.length) {
     const path = day.glucose.slice().sort((a, b) => a.hour - b.hour)
@@ -149,6 +164,23 @@ function renderChart(day) {
   });
 
   day.insulin.forEach((reading) => {
+    if (reading.insulinType === "basal") {
+      const line = svgElement("line", {
+        x1: xForHour(reading.hour),
+        y1: yForInsulin(reading.value),
+        x2: xForHour(basalEndHour(reading)),
+        y2: yForInsulin(reading.value),
+        class: "basal-duration-line",
+        tabindex: "0",
+        role: "button",
+        "aria-label": insulinLabel(day, reading),
+        "data-reading-id": reading.id,
+      });
+      bindReadingEvents(line, day, reading);
+      svg.append(line);
+      return;
+    }
+
     const x = xForHour(reading.hour);
     const group = svgElement("g", { class: "insulin-point", tabindex: "0", role: "button", "aria-label": insulinLabel(day, reading), "data-reading-id": reading.id });
     group.append(svgElement("line", { x1: x, y1: dimensions.bottom - 48, x2: x, y2: dimensions.bottom, class: "insulin-stem" }));
@@ -166,7 +198,9 @@ function glucoseLabel(day, reading) {
 
 function insulinLabel(day, reading) {
   const date = readingDate(day, reading);
-  return `Insulin ${reading.value} units, ${shortDateFormatter.format(date)} at ${timeFormatter.format(date)}`;
+  const type = reading.insulinType === "basal" ? "Basal" : "Bolus";
+  const duration = reading.insulinType === "basal" ? ` for ${reading.durationMinutes} minutes,` : ",";
+  return `${type} insulin ${reading.value} units${duration} ${shortDateFormatter.format(date)} at ${timeFormatter.format(date)}`;
 }
 
 function bindReadingEvents(node, day, reading) {
@@ -186,7 +220,9 @@ function bindReadingEvents(node, day, reading) {
 
 function showTooltip(event, day, reading) {
   const date = readingDate(day, reading);
-  tooltip.innerHTML = `<strong>${reading.type === "glucose" ? `${reading.value} mg/dL` : `${reading.value} units insulin`}</strong><span>${shortDateFormatter.format(date)} · ${timeFormatter.format(date)}</span>`;
+  const insulinType = reading.insulinType === "basal" ? "Basal" : "Bolus";
+  const duration = reading.insulinType === "basal" ? ` · ${reading.durationMinutes} min` : "";
+  tooltip.innerHTML = `<strong>${reading.type === "glucose" ? `${reading.value} mg/dL` : `${reading.value} units ${insulinType}`}</strong><span>${shortDateFormatter.format(date)} · ${timeFormatter.format(date)}${duration}</span>`;
   tooltip.hidden = false;
   positionTooltip(event);
 }
@@ -209,6 +245,12 @@ function openReading(day, reading) {
   document.querySelector("#detail-time").textContent = timeFormatter.format(date);
   document.querySelector("#detail-value-label").textContent = isGlucose ? "Value" : "Dosage";
   document.querySelector("#detail-value").textContent = isGlucose ? `${reading.value} mg/dL` : `${reading.value} units`;
+  const typeRow = document.querySelector("#detail-insulin-type-row");
+  const durationRow = document.querySelector("#detail-duration-row");
+  typeRow.hidden = isGlucose;
+  durationRow.hidden = isGlucose || reading.insulinType !== "basal";
+  document.querySelector("#detail-insulin-type").textContent = reading.insulinType === "basal" ? "Basal" : "Bolus";
+  document.querySelector("#detail-duration").textContent = reading.insulinType === "basal" ? `${reading.durationMinutes} minutes` : "";
   readingDialog.showModal();
 }
 
@@ -251,6 +293,58 @@ function scheduleWarningRepeat() {
 function setEntryTimestamp(date) {
   readingDateInput.value = toDateKey(date);
   readingTimeInput.value = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function setInsulinEntryTimestamp(date) {
+  insulinDateInput.value = toDateKey(date);
+  insulinTimeInput.value = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function selectedInsulinType() {
+  return insulinEntryForm.elements.namedItem("insulin-type").value;
+}
+
+function updateBasalDurationField() {
+  const isBasal = selectedInsulinType() === "basal";
+  basalDurationField.hidden = !isBasal;
+  basalDurationInput.disabled = !isBasal;
+  basalDurationInput.required = isBasal;
+  if (!isBasal) basalDurationInput.value = "";
+}
+
+function recordInsulinEntry(event) {
+  event.preventDefault();
+  insulinEntryStatus.textContent = "";
+  if (!insulinEntryForm.reportValidity()) return;
+
+  const timestamp = new Date(`${insulinDateInput.value}T${insulinTimeInput.value}`);
+  const insulinType = selectedInsulinType();
+  try {
+    days = addInsulinReading(days, {
+      insulinType,
+      value: insulinQuantityInput.value,
+      durationMinutes: basalDurationInput.value,
+      timestamp,
+    });
+  } catch (error) {
+    insulinEntryStatus.textContent = error.message;
+    return;
+  }
+
+  const recordedDayIndex = days.findIndex((day) => day.key === toDateKey(timestamp));
+  state.dayIndex = recordedDayIndex >= 0 ? recordedDayIndex : days.length - 1;
+  state.selected = null;
+  render();
+  insulinEntryStatus.textContent = `Recorded ${insulinType} insulin: ${Number(insulinQuantityInput.value).toFixed(1)} units on ${shortDateFormatter.format(timestamp)} at ${timeFormatter.format(timestamp)}.`;
+  insulinQuantityInput.value = "";
+  basalDurationInput.value = "";
+}
+
+function importInsulinReadings(readings) {
+  return readings.reduce((updatedDays, reading, index) => addInsulinReading(updatedDays, {
+    ...reading,
+    id: `${toDateKey(reading.timestamp)}-insulin-import-${reading.timestamp.getTime()}-${index}`,
+  }), days);
 }
 
 function recordGlucoseEntry(event) {
@@ -309,13 +403,22 @@ document.querySelector("#open-glucose-entry").addEventListener("click", () => {
   entryDialog.showModal();
 });
 document.querySelector("#close-glucose-entry").addEventListener("click", () => entryDialog.close());
+document.querySelector("#open-insulin-entry").addEventListener("click", () => {
+  insulinEntryStatus.textContent = "";
+  document.querySelector("#insulin-import-status").textContent = "";
+  insulinEntryDialog.showModal();
+});
+document.querySelector("#close-insulin-entry").addEventListener("click", () => insulinEntryDialog.close());
 document.querySelector("#open-import-dialog").addEventListener("click", () => {
   document.querySelector("#import-status").textContent = "";
   importDialog.showModal();
 });
 document.querySelector("#close-import-dialog").addEventListener("click", () => importDialog.close());
 document.querySelector("#use-current-time").addEventListener("click", () => setEntryTimestamp(new Date()));
+document.querySelector("#use-current-insulin-time").addEventListener("click", () => setInsulinEntryTimestamp(new Date()));
+insulinEntryForm.querySelectorAll('input[name="insulin-type"]').forEach((input) => input.addEventListener("change", updateBasalDurationField));
 entryForm.addEventListener("submit", recordGlucoseEntry);
+insulinEntryForm.addEventListener("submit", recordInsulinEntry);
 document.querySelector("#spreadsheet-file").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -335,8 +438,28 @@ document.querySelector("#spreadsheet-file").addEventListener("change", async (ev
     event.target.value = "";
   }
 });
+document.querySelector("#insulin-spreadsheet-file").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  const status = document.querySelector("#insulin-import-status");
+  try {
+    status.textContent = "Importing insulin spreadsheet…";
+    const readings = await parseInsulinSpreadsheetFile(file);
+    days = importInsulinReadings(readings);
+    const latestImportedDate = readings.at(-1).timestamp;
+    const importedDayIndex = days.findIndex((day) => day.key === toDateKey(latestImportedDate));
+    state.dayIndex = importedDayIndex >= 0 ? importedDayIndex : days.length - 1;
+    state.selected = null;
+    render();
+    status.textContent = `Loaded ${readings.length} insulin deliver${readings.length === 1 ? "y" : "ies"}.`;
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    event.target.value = "";
+  }
+});
 
-[entryDialog, importDialog, readingDialog, confirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
+[entryDialog, insulinEntryDialog, importDialog, readingDialog, confirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
   if (event.target === dialog) dialog.close();
 }));
 
