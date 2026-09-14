@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   addGlucoseReading,
   clampDayIndex,
@@ -92,4 +93,15 @@ test("removes only the confirmed reading from its collection", () => {
 
 test("formats local dates without UTC rollover", () => {
   assert.equal(toDateKey(new Date(2026, 7, 28, 23, 30)), "2026-08-28");
+});
+
+test("keeps glucose spreadsheet import inside the Add Glucose Reading dialog", () => {
+  const markup = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const dialogStart = markup.indexOf('<dialog id="glucose-entry-dialog"');
+  const dialogEnd = markup.indexOf("</dialog>", dialogStart);
+  const glucoseDialog = markup.slice(dialogStart, dialogEnd);
+
+  assert.match(glucoseDialog, /id="spreadsheet-file"/);
+  assert.match(glucoseDialog, />Import spreadsheet</);
+  assert.doesNotMatch(markup, /id="open-import-dialog"|id="import-dialog"/);
 });

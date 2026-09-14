@@ -73,7 +73,6 @@ const confirmDialog = document.querySelector("#confirm-dialog");
 const warningDialog = document.querySelector("#warning-dialog");
 const toast = document.querySelector("#toast");
 const entryDialog = document.querySelector("#glucose-entry-dialog");
-const importDialog = document.querySelector("#import-dialog");
 const entryForm = document.querySelector("#glucose-entry-form");
 const glucoseLevelInput = document.querySelector("#glucose-level");
 const readingDateInput = document.querySelector("#reading-date");
@@ -306,14 +305,10 @@ document.querySelector("#acknowledge-warning").addEventListener("click", () => {
 });
 document.querySelector("#open-glucose-entry").addEventListener("click", () => {
   entryStatus.textContent = "";
+  document.querySelector("#import-status").textContent = "";
   entryDialog.showModal();
 });
 document.querySelector("#close-glucose-entry").addEventListener("click", () => entryDialog.close());
-document.querySelector("#open-import-dialog").addEventListener("click", () => {
-  document.querySelector("#import-status").textContent = "";
-  importDialog.showModal();
-});
-document.querySelector("#close-import-dialog").addEventListener("click", () => importDialog.close());
 document.querySelector("#use-current-time").addEventListener("click", () => setEntryTimestamp(new Date()));
 entryForm.addEventListener("submit", recordGlucoseEntry);
 document.querySelector("#spreadsheet-file").addEventListener("change", async (event) => {
@@ -336,7 +331,7 @@ document.querySelector("#spreadsheet-file").addEventListener("change", async (ev
   }
 });
 
-[entryDialog, importDialog, readingDialog, confirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
+[entryDialog, readingDialog, confirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
   if (event.target === dialog) dialog.close();
 }));
 
