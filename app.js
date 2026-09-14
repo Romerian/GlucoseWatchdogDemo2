@@ -1,5 +1,6 @@
 import {
   ACCEPTABLE_RANGE,
+  addGlucoseReading,
   BORDERLINE_HIGH_RANGE,
   clampDayIndex,
   glucoseWarning,
@@ -7,7 +8,7 @@ import {
   LOW_RANGE,
   removeReadingById,
   toDateKey,
-} from "./metrics.js";
+} from "./metrics.js?v=gwt6-2";
 import { parseSpreadsheetFile } from "./spreadsheet.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -71,6 +72,13 @@ const readingDialog = document.querySelector("#reading-dialog");
 const confirmDialog = document.querySelector("#confirm-dialog");
 const warningDialog = document.querySelector("#warning-dialog");
 const toast = document.querySelector("#toast");
+const entryDialog = document.querySelector("#glucose-entry-dialog");
+const importDialog = document.querySelector("#import-dialog");
+const entryForm = document.querySelector("#glucose-entry-form");
+const glucoseLevelInput = document.querySelector("#glucose-level");
+const readingDateInput = document.querySelector("#reading-date");
+const readingTimeInput = document.querySelector("#reading-time");
+const entryStatus = document.querySelector("#entry-status");
 
 const dimensions = { left: 68, right: 964, top: 24, bottom: 348 };
 const yMin = LOW_RANGE.min;
@@ -240,6 +248,30 @@ function scheduleWarningRepeat() {
   }, WARNING_REPEAT_MS);
 }
 
+function setEntryTimestamp(date) {
+  readingDateInput.value = toDateKey(date);
+  readingTimeInput.value = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function recordGlucoseEntry(event) {
+  event.preventDefault();
+  entryStatus.textContent = "";
+  if (!entryForm.reportValidity()) return;
+
+  const value = Number(glucoseLevelInput.value);
+  const timestamp = new Date(`${readingDateInput.value}T${readingTimeInput.value}`);
+  if (!Number.isFinite(value) || Number.isNaN(timestamp.getTime())) return;
+
+  days = addGlucoseReading(days, { value, timestamp });
+  const recordedDayIndex = days.findIndex((day) => day.key === toDateKey(timestamp));
+  state.dayIndex = recordedDayIndex >= 0 ? recordedDayIndex : days.length - 1;
+  state.selected = null;
+  render();
+  evaluateLatestWarning();
+  entryStatus.textContent = `Recorded ${value} mg/dL on ${shortDateFormatter.format(timestamp)} at ${timeFormatter.format(timestamp)}.`;
+  glucoseLevelInput.value = "";
+}
+
 function render() {
   const day = days[state.dayIndex];
   document.querySelector("#chart-date").textContent = dateFormatter.format(day.date);
@@ -272,6 +304,18 @@ document.querySelector("#acknowledge-warning").addEventListener("click", () => {
   warningDialog.close();
   scheduleWarningRepeat();
 });
+document.querySelector("#open-glucose-entry").addEventListener("click", () => {
+  entryStatus.textContent = "";
+  entryDialog.showModal();
+});
+document.querySelector("#close-glucose-entry").addEventListener("click", () => entryDialog.close());
+document.querySelector("#open-import-dialog").addEventListener("click", () => {
+  document.querySelector("#import-status").textContent = "";
+  importDialog.showModal();
+});
+document.querySelector("#close-import-dialog").addEventListener("click", () => importDialog.close());
+document.querySelector("#use-current-time").addEventListener("click", () => setEntryTimestamp(new Date()));
+entryForm.addEventListener("submit", recordGlucoseEntry);
 document.querySelector("#spreadsheet-file").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -292,7 +336,7 @@ document.querySelector("#spreadsheet-file").addEventListener("change", async (ev
   }
 });
 
-[readingDialog, confirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
+[entryDialog, importDialog, readingDialog, confirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
   if (event.target === dialog) dialog.close();
 }));
 

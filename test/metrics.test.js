@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  addGlucoseReading,
   clampDayIndex,
   glucoseRange,
   glucoseWarning,
@@ -10,6 +11,30 @@ import {
   removeReadingById,
   toDateKey,
 } from "../metrics.js";
+
+test("records a glucose value with its date and time", () => {
+  const timestamp = new Date(2026, 8, 14, 9, 35);
+  const days = addGlucoseReading([], { id: "new-reading", value: 123, timestamp });
+  assert.equal(days.length, 1);
+  assert.equal(days[0].key, "2026-09-14");
+  assert.deepEqual(days[0].glucose[0], {
+    id: "new-reading",
+    type: "glucose",
+    hour: 9 + 35 / 60,
+    value: 123,
+  });
+});
+
+test("keeps only the latest seven days after recording", () => {
+  const sourceDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(2026, 8, index + 1, 12);
+    return { date, key: toDateKey(date), glucose: [], insulin: [] };
+  });
+  const updated = addGlucoseReading(sourceDays, { value: 110, timestamp: new Date(2026, 8, 8, 8) });
+  assert.equal(updated.length, 7);
+  assert.equal(updated[0].key, "2026-09-02");
+  assert.equal(updated.at(-1).glucose[0].value, 110);
+});
 
 test("limits navigation to the available seven-day window", () => {
   assert.equal(clampDayIndex(-1, 7), 0);
