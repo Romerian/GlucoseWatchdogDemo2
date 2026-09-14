@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f5f7f2" />
     <title>Glucose Watchdog</title>
-    <link rel="stylesheet" href="styles.css?v=gwt8-1" />
+    <link rel="stylesheet" href="styles.css?v=gwt10-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -16,6 +16,7 @@
           </span>
           <span>Glucose<br /><strong>Watchdog</strong></span>
         </a>
+        <button id="open-user-management" class="user-management-button" type="button">User Management</button>
       </header>
 
       <main id="main-content">
@@ -88,6 +89,75 @@
       </section>
     </dialog>
 
+    <dialog id="user-management-dialog" class="user-management-dialog" aria-labelledby="user-management-title">
+      <div class="dialog-topline">
+        <div>
+          <span class="reading-kind">Administrator</span>
+          <h2 id="user-management-title">User Management</h2>
+        </div>
+        <button id="close-user-management" class="close-button" type="button" aria-label="Close user management">×</button>
+      </div>
+      <div class="user-actions" aria-label="User actions">
+        <button id="add-user" class="primary-button" type="button">Add User</button>
+        <button id="edit-user" class="secondary-button" type="button" disabled>Edit User</button>
+        <button id="delete-users" class="danger-button" type="button" disabled>Delete User</button>
+      </div>
+      <p class="selection-help">Select one row, or hold Ctrl while selecting rows to change a multiple selection.</p>
+      <p id="user-management-status" class="entry-status" role="status" aria-live="polite"></p>
+      <div class="user-table-wrap">
+        <table class="user-table">
+          <caption class="visually-hidden">Application users</caption>
+          <thead>
+            <tr>
+              <th scope="col"><button type="button" data-user-sort="username">Username</button></th>
+              <th scope="col"><button type="button" data-user-sort="firstName">First Name</button></th>
+              <th scope="col"><button type="button" data-user-sort="lastName">Last Name</button></th>
+              <th scope="col"><button type="button" data-user-sort="userType">User Type</button></th>
+              <th scope="col"><button type="button" data-user-sort="lastLogin">Last login</button></th>
+            </tr>
+          </thead>
+          <tbody id="user-list"></tbody>
+        </table>
+      </div>
+    </dialog>
+
+    <dialog id="user-editor-dialog" class="user-editor-dialog" aria-labelledby="user-editor-title">
+      <div class="dialog-topline">
+        <h2 id="user-editor-title">Add User</h2>
+        <button id="close-user-editor" class="close-button" type="button" aria-label="Cancel user changes">×</button>
+      </div>
+      <form id="user-editor-form">
+        <label class="entry-field" for="user-username"><span>Username</span><input id="user-username" name="username" required /></label>
+        <label class="entry-field" for="user-password"><span>Password</span><input id="user-password" name="password" type="password" required /></label>
+        <label class="entry-field" for="user-first-name"><span>First name</span><input id="user-first-name" name="firstName" required /></label>
+        <label class="entry-field" for="user-last-name"><span>Last name</span><input id="user-last-name" name="lastName" required /></label>
+        <label class="entry-field" for="user-type"><span>User type</span><select id="user-type" name="userType" required><option value="Administrator">Administrator</option><option value="User">User</option></select></label>
+        <p id="user-editor-status" class="entry-status" role="status" aria-live="polite"></p>
+        <div class="dialog-actions"><button id="cancel-user-editor" class="secondary-button" type="button">Cancel</button><button class="primary-button" type="submit">Continue</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="add-user-confirm-dialog" class="confirm-dialog" aria-labelledby="add-user-confirm-title">
+      <div class="dialog-topline"><h2 id="add-user-confirm-title">Confirm new user</h2><button id="close-add-user-confirm" class="close-button" type="button" aria-label="Cancel adding user">×</button></div>
+      <p>Review the new user information before adding the account.</p>
+      <dl class="reading-details">
+        <div><dt>Username</dt><dd id="confirm-user-username"></dd></div>
+        <div><dt>First name</dt><dd id="confirm-user-first-name"></dd></div>
+        <div><dt>Last name</dt><dd id="confirm-user-last-name"></dd></div>
+        <div><dt>User type</dt><dd id="confirm-user-type"></dd></div>
+      </dl>
+      <p id="add-user-confirm-status" class="entry-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions"><button id="cancel-add-user" class="secondary-button" type="button">Cancel</button><button id="confirm-add-user" class="primary-button" type="button">Add User</button></div>
+    </dialog>
+
+    <dialog id="delete-users-confirm-dialog" class="confirm-dialog" aria-labelledby="delete-users-confirm-title">
+      <div class="warning-icon" aria-hidden="true">!</div>
+      <h2 id="delete-users-confirm-title">Delete selected users?</h2>
+      <p id="delete-users-warning">This deletion is permanent.</p>
+      <p id="delete-users-status" class="entry-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions"><button id="cancel-delete-users" class="secondary-button" type="button">Cancel</button><button id="confirm-delete-users" class="danger-button" type="button">Acknowledge and delete</button></div>
+    </dialog>
+
     <dialog id="reading-dialog" class="reading-dialog" aria-labelledby="reading-dialog-title">
       <div class="dialog-topline"><span id="reading-kind" class="reading-kind"></span><button id="close-reading" class="close-button" type="button" aria-label="Close reading details">×</button></div>
       <h2 id="reading-dialog-title">Reading details</h2>
@@ -115,6 +185,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden>Reading removed from the chart.</div>
-    <script type="module" src="app.js?v=gwt8-1"></script>
+    <script type="module" src="app.js?v=gwt10-1"></script>
   </body>
 </html>

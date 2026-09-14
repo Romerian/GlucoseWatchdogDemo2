@@ -10,6 +10,7 @@ import {
   toDateKey,
 } from "./metrics.js?v=gwt6-2";
 import { parseSpreadsheetFile } from "./spreadsheet.js";
+import { addUser, createDefaultUsers, deleteUsers, editUser, selectUserRows, sortUsers } from "./users.js?v=gwt10-1";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DAY_COUNT = 7;
@@ -28,6 +29,7 @@ const GLUCOSE_PATTERNS = [
 const dateFormatter = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 const shortDateFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
 const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+const lastLoginFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" });
 
 function createDemoDays() {
   return Array.from({ length: DAY_COUNT }, (_, dayIndex) => {
@@ -65,6 +67,13 @@ function createImportedDays(readings) {
 }
 
 let days = createDemoDays();
+let users = createDefaultUsers();
+let selectedUserIds = new Set();
+let userSort = { field: "username", direction: "asc" };
+let pendingUser = null;
+let userEditorMode = "add";
+let userIdSequence = 1;
+const currentUserId = "default-admin";
 const state = { dayIndex: days.length - 1, selected: null, activeWarning: null, warningTimer: null };
 const svg = document.querySelector("#glucose-chart");
 const tooltip = document.querySelector("#chart-tooltip");
@@ -78,6 +87,15 @@ const glucoseLevelInput = document.querySelector("#glucose-level");
 const readingDateInput = document.querySelector("#reading-date");
 const readingTimeInput = document.querySelector("#reading-time");
 const entryStatus = document.querySelector("#entry-status");
+const userManagementButton = document.querySelector("#open-user-management");
+const userManagementDialog = document.querySelector("#user-management-dialog");
+const userEditorDialog = document.querySelector("#user-editor-dialog");
+const addUserConfirmDialog = document.querySelector("#add-user-confirm-dialog");
+const deleteUsersConfirmDialog = document.querySelector("#delete-users-confirm-dialog");
+const userEditorForm = document.querySelector("#user-editor-form");
+const userList = document.querySelector("#user-list");
+const userManagementStatus = document.querySelector("#user-management-status");
+const userEditorStatus = document.querySelector("#user-editor-status");
 
 const dimensions = { left: 68, right: 964, top: 24, bottom: 348 };
 const yMin = LOW_RANGE.min;
@@ -271,6 +289,174 @@ function recordGlucoseEntry(event) {
   glucoseLevelInput.value = "";
 }
 
+function currentUserIsAdministrator() {
+  return users.find((user) => user.id === currentUserId)?.userType === "Administrator";
+}
+
+function updateUserManagementAccess() {
+  const allowed = currentUserIsAdministrator();
+  userManagementButton.hidden = !allowed;
+  if (!allowed && userManagementDialog.open) userManagementDialog.close();
+}
+
+function selectUser(userId, ctrlKey) {
+  selectedUserIds = selectUserRows(selectedUserIds, userId, ctrlKey);
+  renderUserManagement();
+}
+
+function renderUserManagement() {
+  const orderedUsers = sortUsers(users, userSort.field, userSort.direction);
+  userList.replaceChildren();
+  orderedUsers.forEach((user) => {
+    const row = document.createElement("tr");
+    row.tabIndex = 0;
+    row.dataset.userId = user.id;
+    row.setAttribute("aria-selected", String(selectedUserIds.has(user.id)));
+    [
+      user.username,
+      user.firstName,
+      user.lastName,
+      user.userType,
+      user.lastLogin ? lastLoginFormatter.format(user.lastLogin) : "Never",
+    ].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.append(cell);
+    });
+    row.addEventListener("click", (event) => selectUser(user.id, event.ctrlKey));
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectUser(user.id, event.ctrlKey);
+      }
+    });
+    userList.append(row);
+  });
+
+  document.querySelectorAll("[data-user-sort]").forEach((button) => {
+    const field = button.dataset.userSort;
+    const labels = { username: "Username", firstName: "First Name", lastName: "Last Name", userType: "User Type", lastLogin: "Last login" };
+    const active = field === userSort.field;
+    button.textContent = `${labels[field]}${active ? userSort.direction === "asc" ? " ↑" : " ↓" : ""}`;
+    button.closest("th").setAttribute("aria-sort", active ? (userSort.direction === "asc" ? "ascending" : "descending") : "none");
+  });
+
+  const selectedCount = selectedUserIds.size;
+  document.querySelector("#edit-user").disabled = selectedCount !== 1;
+  const deleteButton = document.querySelector("#delete-users");
+  deleteButton.disabled = selectedCount === 0;
+  deleteButton.textContent = selectedCount > 1 ? `Delete ${selectedCount} Users` : "Delete User";
+}
+
+function openUserEditor(mode) {
+  userEditorMode = mode;
+  userEditorStatus.textContent = "";
+  userEditorForm.reset();
+  document.querySelector("#user-editor-title").textContent = mode === "add" ? "Add User" : "Edit User";
+
+  if (mode === "edit") {
+    const selectedId = [...selectedUserIds][0];
+    const user = users.find((candidate) => candidate.id === selectedId);
+    if (!user) return;
+    userEditorForm.elements.namedItem("username").value = user.username;
+    userEditorForm.elements.namedItem("password").value = user.password;
+    userEditorForm.elements.namedItem("firstName").value = user.firstName;
+    userEditorForm.elements.namedItem("lastName").value = user.lastName;
+    userEditorForm.elements.namedItem("userType").value = user.userType;
+  }
+  userEditorDialog.showModal();
+}
+
+function userFormValues() {
+  const values = new FormData(userEditorForm);
+  return {
+    username: values.get("username"),
+    password: values.get("password"),
+    firstName: values.get("firstName"),
+    lastName: values.get("lastName"),
+    userType: values.get("userType"),
+  };
+}
+
+function submitUserEditor(event) {
+  event.preventDefault();
+  userEditorStatus.textContent = "";
+  if (!userEditorForm.reportValidity()) return;
+  const values = userFormValues();
+
+  try {
+    if (userEditorMode === "edit") {
+      const selectedId = [...selectedUserIds][0];
+      users = editUser(users, selectedId, values);
+      userEditorDialog.close();
+      userManagementStatus.textContent = `Updated ${values.username}.`;
+      renderUserManagement();
+      updateUserManagementAccess();
+      return;
+    }
+
+    const candidate = {
+      id: `user-${Date.now()}-${userIdSequence++}`,
+      ...values,
+      lastLogin: null,
+    };
+    pendingUser = addUser(users, candidate).at(-1);
+    document.querySelector("#confirm-user-username").textContent = pendingUser.username;
+    document.querySelector("#confirm-user-first-name").textContent = pendingUser.firstName;
+    document.querySelector("#confirm-user-last-name").textContent = pendingUser.lastName;
+    document.querySelector("#confirm-user-type").textContent = pendingUser.userType;
+    document.querySelector("#add-user-confirm-status").textContent = "";
+    userEditorDialog.close();
+    addUserConfirmDialog.showModal();
+  } catch (error) {
+    userEditorStatus.textContent = error.message;
+  }
+}
+
+function confirmAddUser() {
+  if (!pendingUser) return;
+  try {
+    users = addUser(users, pendingUser);
+    selectedUserIds = new Set([pendingUser.id]);
+    userManagementStatus.textContent = `Added ${pendingUser.username}.`;
+    pendingUser = null;
+    addUserConfirmDialog.close();
+    renderUserManagement();
+  } catch (error) {
+    document.querySelector("#add-user-confirm-status").textContent = error.message;
+  }
+}
+
+function requestUserDeletion() {
+  const selectedCount = selectedUserIds.size;
+  if (!selectedCount) return;
+  userManagementStatus.classList.remove("error");
+  userManagementStatus.textContent = "";
+  try {
+    deleteUsers(users, selectedUserIds);
+  } catch (error) {
+    userManagementStatus.classList.add("error");
+    userManagementStatus.textContent = error.message;
+    return;
+  }
+  document.querySelector("#delete-users-warning").textContent = `Deletion is permanent. You are about to delete ${selectedCount} selected user${selectedCount === 1 ? "" : "s"}.`;
+  document.querySelector("#delete-users-status").textContent = "";
+  deleteUsersConfirmDialog.showModal();
+}
+
+function confirmUserDeletion() {
+  try {
+    users = deleteUsers(users, selectedUserIds);
+    selectedUserIds = new Set();
+    deleteUsersConfirmDialog.close();
+    userManagementStatus.textContent = "Selected users were permanently deleted.";
+    renderUserManagement();
+    updateUserManagementAccess();
+  } catch (error) {
+    document.querySelector("#delete-users-status").textContent = error.message;
+  }
+}
+
 function render() {
   const day = days[state.dayIndex];
   document.querySelector("#chart-date").textContent = dateFormatter.format(day.date);
@@ -311,6 +497,32 @@ document.querySelector("#open-glucose-entry").addEventListener("click", () => {
 document.querySelector("#close-glucose-entry").addEventListener("click", () => entryDialog.close());
 document.querySelector("#use-current-time").addEventListener("click", () => setEntryTimestamp(new Date()));
 entryForm.addEventListener("submit", recordGlucoseEntry);
+userManagementButton.addEventListener("click", () => {
+  if (!currentUserIsAdministrator()) return;
+  userManagementStatus.classList.remove("error");
+  userManagementStatus.textContent = "";
+  renderUserManagement();
+  userManagementDialog.showModal();
+});
+document.querySelector("#close-user-management").addEventListener("click", () => userManagementDialog.close());
+document.querySelector("#add-user").addEventListener("click", () => openUserEditor("add"));
+document.querySelector("#edit-user").addEventListener("click", () => openUserEditor("edit"));
+document.querySelector("#delete-users").addEventListener("click", requestUserDeletion);
+document.querySelectorAll("[data-user-sort]").forEach((button) => button.addEventListener("click", () => {
+  const field = button.dataset.userSort;
+  userSort = field === userSort.field
+    ? { field, direction: userSort.direction === "asc" ? "desc" : "asc" }
+    : { field, direction: "asc" };
+  renderUserManagement();
+}));
+userEditorForm.addEventListener("submit", submitUserEditor);
+document.querySelector("#close-user-editor").addEventListener("click", () => userEditorDialog.close());
+document.querySelector("#cancel-user-editor").addEventListener("click", () => userEditorDialog.close());
+document.querySelector("#confirm-add-user").addEventListener("click", confirmAddUser);
+document.querySelector("#close-add-user-confirm").addEventListener("click", () => { pendingUser = null; addUserConfirmDialog.close(); });
+document.querySelector("#cancel-add-user").addEventListener("click", () => { pendingUser = null; addUserConfirmDialog.close(); });
+document.querySelector("#confirm-delete-users").addEventListener("click", confirmUserDeletion);
+document.querySelector("#cancel-delete-users").addEventListener("click", () => deleteUsersConfirmDialog.close());
 document.querySelector("#spreadsheet-file").addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -331,8 +543,10 @@ document.querySelector("#spreadsheet-file").addEventListener("change", async (ev
   }
 });
 
-[entryDialog, readingDialog, confirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
+[entryDialog, readingDialog, confirmDialog, userManagementDialog, userEditorDialog, addUserConfirmDialog, deleteUsersConfirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
   if (event.target === dialog) dialog.close();
 }));
 
+renderUserManagement();
+updateUserManagementAccess();
 render();
