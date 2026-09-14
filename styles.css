@@ -29,9 +29,8 @@ button:focus-visible, [tabindex="0"]:focus-visible, a:focus-visible, label[for]:
 main { width: min(1420px, calc(100% - 48px)); margin: 0 auto; padding: 36px 0 72px; }
 h2, p { margin-top: 0; }
 
-.open-entry-button, .open-import-button { min-height: 44px; padding: 0 20px; border-radius: 11px; font-size: 13px; font-weight: 800; }
+.open-entry-button { min-height: 44px; padding: 0 20px; border-radius: 11px; font-size: 13px; font-weight: 800; }
 .open-entry-button { border: 1px solid var(--green-dark); background: var(--green-dark); color: white; }
-.open-import-button { border: 1px solid var(--green-dark); background: var(--green-dark); color: white; }
 .entry-dialog { width: min(520px, calc(100% - 32px)); }
 .entry-dialog .dialog-topline { align-items: flex-start; margin-bottom: 20px; }
 .entry-dialog .dialog-topline h2 { margin: 0; }
@@ -47,10 +46,9 @@ h2, p { margin-top: 0; }
 .current-time-button, .entry-submit { height: 42px; padding: 0 15px; border-radius: 10px; font-size: 12px; font-weight: 800; white-space: nowrap; }
 .entry-submit { border: 1px solid var(--green-dark); background: var(--green-dark); color: white; }
 .entry-status { min-height: 18px; margin: 10px 0 -4px; color: var(--green-dark); font-size: 12px; font-weight: 750; }
-.import-dialog { width: min(520px, calc(100% - 32px)); }
-.import-dialog .dialog-topline { align-items: flex-start; margin-bottom: 14px; }
-.import-dialog .dialog-topline h2 { margin: 0; }
-.import-dialog > p { color: var(--muted); font-size: 13px; line-height: 1.55; }
+.entry-import { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+.entry-import h3 { margin: 0 0 6px; font-family: Georgia, "Times New Roman", serif; font-size: 20px; font-weight: 500; }
+.entry-import > p { margin-bottom: 14px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .import-status:not(:empty) { margin-top: 7px; color: var(--green-dark); font-weight: 750; }
 #spreadsheet-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .import-file-button { display: block; width: 100%; padding: 12px 17px; border-radius: 10px; background: var(--green-dark); color: white; font-size: 12px; font-weight: 800; text-align: center; }
@@ -101,7 +99,7 @@ dialog h2 { margin: 12px 0 20px; font-family: Georgia, "Times New Roman", serif;
 @media (max-width: 680px) {
   .topbar { height: 72px; padding: 0 18px; }.brand-mark { width: 40px; height: 40px; }
   main { width: min(100% - 28px, 1420px); padding-top: 24px; }
-  .open-entry-button, .current-time-button, .entry-submit { width: 100%; }.topbar .open-import-button { width: auto; padding: 0 13px; }
+  .open-entry-button, .current-time-button, .entry-submit { width: 100%; }
   .chart-header { align-items: flex-start; flex-direction: column; }
   .day-navigation { width: 100%; }.day-navigation .open-entry-button { width: auto; flex: 1; padding: 0 10px; }.day-navigation #today-button { flex: 0 1 auto; padding: 0 10px; }
   .legend { gap: 12px; }.dialog-actions { flex-direction: column-reverse; }.dialog-actions button { width: 100%; }
