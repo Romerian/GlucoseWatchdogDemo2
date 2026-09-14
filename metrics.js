@@ -25,6 +25,29 @@ export function toDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
+export function addGlucoseReading(days, reading, dayCount = 7) {
+  const key = toDateKey(reading.timestamp);
+  const updatedDays = days.map((day) => ({ ...day, glucose: [...day.glucose], insulin: [...day.insulin] }));
+  let targetDay = updatedDays.find((day) => day.key === key);
+
+  if (!targetDay) {
+    const date = new Date(reading.timestamp);
+    date.setHours(12, 0, 0, 0);
+    targetDay = { date, key, glucose: [], insulin: [] };
+    updatedDays.push(targetDay);
+  }
+
+  targetDay.glucose.push({
+    id: reading.id ?? `${key}-entry-${reading.timestamp.getTime()}`,
+    type: "glucose",
+    hour: reading.timestamp.getHours() + reading.timestamp.getMinutes() / 60,
+    value: reading.value,
+  });
+  targetDay.glucose.sort((a, b) => a.hour - b.hour);
+
+  return updatedDays.sort((a, b) => a.date - b.date).slice(-dayCount);
+}
+
 export function glucoseRange(value) {
   if (value >= LOW_RANGE.min && value < LOW_RANGE.max) return "low";
   if (value >= ACCEPTABLE_RANGE.min && value <= ACCEPTABLE_RANGE.max) return "acceptable";

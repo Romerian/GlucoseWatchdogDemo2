@@ -5,30 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f5f7f2" />
     <title>Glucose Watchdog</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=gwt6-11" />
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
         <a class="brand" href="#main-content" aria-label="Glucose Watchdog home">
           <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 48 48"><path d="M24 5C18 14 10 21 10 30a14 14 0 0 0 28 0C38 21 30 14 24 5Z"/><path d="m18 30 4 4 8-10"/></svg>
+            <img src="assets/english-bulldog.png" alt="" />
           </span>
           <span>Glucose<br /><strong>Watchdog</strong></span>
         </a>
+        <button id="open-import-dialog" class="open-import-button" type="button">Import spreadsheet</button>
       </header>
 
       <main id="main-content">
-        <section class="import-card" aria-labelledby="import-title">
-          <div>
-            <h2 id="import-title">Load glucose data</h2>
-            <p>Import an Excel workbook or a CSV/TSV exported from Excel. Use <strong>timestamp + glucose</strong> or <strong>date + time + glucose</strong> columns.</p>
-            <p id="import-status" class="import-status" role="status" aria-live="polite"></p>
-          </div>
-          <label class="import-button" for="spreadsheet-file">Import spreadsheet</label>
-          <input id="spreadsheet-file" type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
-        </section>
-
         <section class="chart-card" aria-labelledby="chart-title">
           <div class="chart-header">
             <div>
@@ -36,6 +27,7 @@
               <p id="chart-date" class="chart-date"></p>
             </div>
             <nav class="day-navigation" aria-label="Browse the last seven days">
+              <button id="open-glucose-entry" class="open-entry-button" type="button">Add Glucose Reading</button>
               <button id="previous-day" class="icon-button" type="button" aria-label="Show previous day">←</button>
               <button id="today-button" type="button">Latest</button>
               <button id="next-day" class="icon-button" type="button" aria-label="Show next day">→</button>
@@ -62,6 +54,44 @@
         </section>
       </main>
     </div>
+
+    <dialog id="glucose-entry-dialog" class="entry-dialog" aria-labelledby="entry-title">
+      <div class="dialog-topline">
+        <h2 id="entry-title">Add glucose reading</h2>
+        <button id="close-glucose-entry" class="close-button" type="button" aria-label="Close add glucose reading">×</button>
+      </div>
+      <form id="glucose-entry-form">
+        <label class="entry-field" for="glucose-level">
+          <span>Blood glucose level</span>
+          <span class="unit-input">
+            <input id="glucose-level" name="glucose-level" type="number" inputmode="decimal" required />
+            <span>mg/dL</span>
+          </span>
+        </label>
+        <label class="entry-field" for="reading-date">
+          <span>Date taken</span>
+          <input id="reading-date" name="reading-date" type="date" required />
+        </label>
+        <label class="entry-field" for="reading-time">
+          <span>Time taken</span>
+          <input id="reading-time" name="reading-time" type="time" required />
+        </label>
+        <button id="use-current-time" class="secondary-button current-time-button" type="button">Use current date and time</button>
+        <button class="entry-submit" type="submit">Add entry</button>
+      </form>
+      <p id="entry-status" class="entry-status" role="status" aria-live="polite"></p>
+    </dialog>
+
+    <dialog id="import-dialog" class="import-dialog" aria-labelledby="import-title">
+      <div class="dialog-topline">
+        <h2 id="import-title">Load glucose data</h2>
+        <button id="close-import-dialog" class="close-button" type="button" aria-label="Close spreadsheet import">×</button>
+      </div>
+      <p>Import an Excel workbook or a CSV/TSV exported from Excel. Use <strong>timestamp + glucose</strong> or <strong>date + time + glucose</strong> columns.</p>
+      <label class="import-file-button" for="spreadsheet-file">Choose spreadsheet</label>
+      <input id="spreadsheet-file" type="file" accept=".xlsx,.csv,.tsv,text/csv,text/tab-separated-values,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+      <p id="import-status" class="import-status" role="status" aria-live="polite"></p>
+    </dialog>
 
     <dialog id="reading-dialog" class="reading-dialog" aria-labelledby="reading-dialog-title">
       <div class="dialog-topline"><span id="reading-kind" class="reading-kind"></span><button id="close-reading" class="close-button" type="button" aria-label="Close reading details">×</button></div>
@@ -90,6 +120,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden>Reading removed from the chart.</div>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=gwt6-4"></script>
   </body>
 </html>
