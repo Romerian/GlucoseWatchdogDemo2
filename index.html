@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f5f7f2" />
     <title>Glucose Watchdog</title>
-    <link rel="stylesheet" href="styles.css?v=gwt8-1" />
+    <link rel="stylesheet" href="styles.css?v=gwt12-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -16,10 +16,11 @@
           </span>
           <span>Glucose<br /><strong>Watchdog</strong></span>
         </a>
+        <button id="open-audit-trail" class="topbar-action" type="button">Audit Trail</button>
       </header>
 
       <main id="main-content">
-        <section class="chart-card" aria-labelledby="chart-title">
+        <section id="main-view" class="chart-card" aria-labelledby="chart-title">
           <div class="chart-header">
             <div>
               <h2 id="chart-title">24-hour glucose chart</h2>
@@ -50,6 +51,40 @@
             <div id="chart-tooltip" class="chart-tooltip" role="tooltip" hidden></div>
           </div>
           <p class="chart-instruction">Hover or focus a marker for a quick reading. Select it to view details or delete it.</p>
+        </section>
+
+        <section id="audit-view" class="audit-view" aria-labelledby="audit-title" hidden>
+          <header class="audit-header">
+            <div>
+              <p class="view-eyebrow">Read-only record</p>
+              <h1 id="audit-title" tabindex="-1">Audit Trail</h1>
+              <p>Application activity is displayed in seven-day intervals.</p>
+            </div>
+            <button id="return-to-main" class="secondary-button return-button" type="button">Return to main page</button>
+          </header>
+
+          <nav class="audit-controls" aria-label="Audit trail date range">
+            <button id="previous-audit-window" class="secondary-button" type="button">← Previous 7 days</button>
+            <p id="audit-date-range" aria-live="polite"></p>
+            <button id="next-audit-window" class="secondary-button" type="button">Next 7 days →</button>
+          </nav>
+
+          <div class="audit-table-wrap">
+            <table class="audit-table">
+              <caption class="visually-hidden">Audit trail records for the selected seven-day interval</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Time</th>
+                  <th scope="col">Activity type</th>
+                  <th scope="col">Description</th>
+                </tr>
+              </thead>
+              <tbody id="audit-records"></tbody>
+            </table>
+            <p id="audit-empty" class="audit-empty" hidden>No audit trail records were found for this seven-day interval.</p>
+          </div>
+          <p class="audit-retention-note">Audit trail history is available for the previous 12 months.</p>
         </section>
       </main>
     </div>
@@ -115,6 +150,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden>Reading removed from the chart.</div>
-    <script type="module" src="app.js?v=gwt8-1"></script>
+    <script type="module" src="app.js?v=gwt12-1"></script>
   </body>
 </html>

@@ -10,6 +10,13 @@ import {
   toDateKey,
 } from "./metrics.js?v=gwt6-2";
 import { parseSpreadsheetFile } from "./spreadsheet.js";
+import {
+  auditWindowEnd,
+  earliestAuditWindowStart,
+  latestAuditWindowStart,
+  recordsForAuditWindow,
+  shiftAuditWindow,
+} from "./audit.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DAY_COUNT = 7;
@@ -28,6 +35,7 @@ const GLUCOSE_PATTERNS = [
 const dateFormatter = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 const shortDateFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
 const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+const auditDateFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
 
 function createDemoDays() {
   return Array.from({ length: DAY_COUNT }, (_, dayIndex) => {
@@ -65,7 +73,22 @@ function createImportedDays(readings) {
 }
 
 let days = createDemoDays();
+let auditRecords = days.flatMap((day) => [
+  ...day.glucose.map((reading) => ({
+    id: `audit-${reading.id}`,
+    timestamp: readingDate(day, reading),
+    activityType: "Glucose reading",
+    description: `Glucose reading recorded at ${reading.value} mg/dL.`,
+  })),
+  ...day.insulin.map((reading) => ({
+    id: `audit-${reading.id}`,
+    timestamp: readingDate(day, reading),
+    activityType: "Insulin entry",
+    description: `Insulin dose recorded at ${reading.value} units.`,
+  })),
+]);
 const state = { dayIndex: days.length - 1, selected: null, activeWarning: null, warningTimer: null };
+const auditState = { windowStart: latestAuditWindowStart() };
 const svg = document.querySelector("#glucose-chart");
 const tooltip = document.querySelector("#chart-tooltip");
 const readingDialog = document.querySelector("#reading-dialog");
@@ -78,6 +101,11 @@ const glucoseLevelInput = document.querySelector("#glucose-level");
 const readingDateInput = document.querySelector("#reading-date");
 const readingTimeInput = document.querySelector("#reading-time");
 const entryStatus = document.querySelector("#entry-status");
+const mainView = document.querySelector("#main-view");
+const auditView = document.querySelector("#audit-view");
+const auditRecordsBody = document.querySelector("#audit-records");
+const auditEmpty = document.querySelector("#audit-empty");
+const openAuditTrailButton = document.querySelector("#open-audit-trail");
 
 const dimensions = { left: 68, right: 964, top: 24, bottom: 348 };
 const yMin = LOW_RANGE.min;
@@ -100,6 +128,63 @@ function readingDate(day, reading) {
   const hours = Math.floor(reading.hour);
   date.setHours(hours, Math.round((reading.hour - hours) * 60), 0, 0);
   return date;
+}
+
+function recordAuditActivity(timestamp, activityType, description) {
+  auditRecords.push({
+    id: `audit-${Date.now()}-${auditRecords.length}`,
+    timestamp: new Date(timestamp),
+    activityType,
+    description,
+  });
+}
+
+function renderAuditTrail() {
+  const now = new Date();
+  const records = recordsForAuditWindow(auditRecords, auditState.windowStart);
+  const end = auditWindowEnd(auditState.windowStart);
+  end.setMilliseconds(-1);
+
+  document.querySelector("#audit-date-range").textContent =
+    `${auditDateFormatter.format(auditState.windowStart)} – ${auditDateFormatter.format(end)}`;
+  document.querySelector("#previous-audit-window").disabled =
+    auditState.windowStart <= earliestAuditWindowStart(now);
+  document.querySelector("#next-audit-window").disabled =
+    auditState.windowStart >= latestAuditWindowStart(now);
+
+  auditRecordsBody.replaceChildren();
+  records.forEach((record) => {
+    const timestamp = new Date(record.timestamp);
+    const row = document.createElement("tr");
+    [
+      auditDateFormatter.format(timestamp),
+      timeFormatter.format(timestamp),
+      record.activityType,
+      record.description,
+    ].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.append(cell);
+    });
+    auditRecordsBody.append(row);
+  });
+  auditEmpty.hidden = records.length > 0;
+}
+
+function openAuditTrail() {
+  auditState.windowStart = latestAuditWindowStart();
+  mainView.hidden = true;
+  auditView.hidden = false;
+  openAuditTrailButton.hidden = true;
+  renderAuditTrail();
+  document.querySelector("#audit-title").focus();
+}
+
+function returnToMainPage() {
+  auditView.hidden = true;
+  mainView.hidden = false;
+  openAuditTrailButton.hidden = false;
+  openAuditTrailButton.focus();
 }
 
 function renderChart(day) {
@@ -262,6 +347,7 @@ function recordGlucoseEntry(event) {
   if (!Number.isFinite(value) || Number.isNaN(timestamp.getTime())) return;
 
   days = addGlucoseReading(days, { value, timestamp });
+  recordAuditActivity(timestamp, "Glucose entry", `Glucose reading recorded at ${value} mg/dL.`);
   const recordedDayIndex = days.findIndex((day) => day.key === toDateKey(timestamp));
   state.dayIndex = recordedDayIndex >= 0 ? recordedDayIndex : days.length - 1;
   state.selected = null;
@@ -283,6 +369,16 @@ function render() {
 document.querySelector("#previous-day").addEventListener("click", () => { state.dayIndex = clampDayIndex(state.dayIndex - 1, days.length); render(); });
 document.querySelector("#next-day").addEventListener("click", () => { state.dayIndex = clampDayIndex(state.dayIndex + 1, days.length); render(); });
 document.querySelector("#today-button").addEventListener("click", () => { state.dayIndex = days.length - 1; render(); });
+openAuditTrailButton.addEventListener("click", openAuditTrail);
+document.querySelector("#return-to-main").addEventListener("click", returnToMainPage);
+document.querySelector("#previous-audit-window").addEventListener("click", () => {
+  auditState.windowStart = shiftAuditWindow(auditState.windowStart, -1);
+  renderAuditTrail();
+});
+document.querySelector("#next-audit-window").addEventListener("click", () => {
+  auditState.windowStart = shiftAuditWindow(auditState.windowStart, 1);
+  renderAuditTrail();
+});
 document.querySelector("#close-reading").addEventListener("click", () => readingDialog.close());
 document.querySelector("#cancel-reading").addEventListener("click", () => readingDialog.close());
 document.querySelector("#request-delete").addEventListener("click", () => { readingDialog.close(); confirmDialog.showModal(); });
@@ -291,6 +387,8 @@ document.querySelector("#confirm-delete").addEventListener("click", () => {
   if (!state.selected) return;
   const { day, reading } = state.selected;
   removeReadingById(reading.type === "glucose" ? day.glucose : day.insulin, reading.id);
+  const value = reading.type === "glucose" ? `${reading.value} mg/dL` : `${reading.value} units`;
+  recordAuditActivity(new Date(), "Reading deletion", `${reading.type === "glucose" ? "Glucose" : "Insulin"} reading of ${value} deleted.`);
   state.selected = null;
   confirmDialog.close();
   render();
@@ -319,6 +417,9 @@ document.querySelector("#spreadsheet-file").addEventListener("change", async (ev
     status.textContent = "Importing spreadsheet…";
     const readings = await parseSpreadsheetFile(file);
     days = createImportedDays(readings);
+    readings.forEach((reading) => {
+      recordAuditActivity(reading.timestamp, "Glucose import", `Glucose reading imported at ${reading.value} mg/dL.`);
+    });
     state.dayIndex = days.length - 1;
     state.selected = null;
     render();
